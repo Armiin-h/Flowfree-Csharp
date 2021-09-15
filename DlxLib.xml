@@ -1,0 +1,423 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>DlxLib</name>
+    </assembly>
+    <members>
+        <member name="T:DlxLib.Dlx">
+            <summary>
+            Use this class to solve exact cover problems.
+            </summary>
+        </member>
+        <member name="M:DlxLib.Dlx.#ctor">
+            <summary>
+            Callers should use this constructor when they do not need to be able to request cancellation.
+            </summary>
+        </member>
+        <member name="M:DlxLib.Dlx.#ctor(System.Threading.CancellationToken)">
+            <summary>
+            Callers should use this constructor when they need to be able to request cancellation.
+            </summary>
+            <example>
+            <code>
+            var matrix = new[,]
+                {
+                    {0, 0, 1, 0, 1, 1, 0},
+                    {1, 0, 0, 1, 0, 0, 1},
+                    {0, 1, 1, 0, 0, 1, 0},
+                    {1, 0, 0, 1, 0, 0, 0},
+                    {0, 1, 0, 0, 0, 0, 1},
+                    {0, 0, 0, 1, 1, 0, 1}
+                };
+            
+            var cancellationTokenSource = new CancellationTokenSource();
+            var dlx = new Dlx(cancellationTokenSource.Token);
+            
+            dlx.SolutionFound += (_, e) =>
+            {
+                var managedThreadId1 = Thread.CurrentThread.ManagedThreadId;
+                Console.WriteLine("[{0}] Found solution {1} - now sleeping", managedThreadId1, e.SolutionIndex);
+                Thread.Sleep(2000);
+                Console.WriteLine("[{0}] Found solution {1} - now waking", managedThreadId1, e.SolutionIndex);
+            };
+            
+            var thread = new Thread(() => dlx.Solve(matrix).ToList());
+            
+            thread.Start();
+            
+            var managedThreadId2 = Thread.CurrentThread.ManagedThreadId;
+            Console.WriteLine("[{0}] Sleeping before calling Cancel...", managedThreadId2);
+            Thread.Sleep(1000);
+            Console.WriteLine("[{0}] Calling Cancel...", managedThreadId2);
+            cancellationTokenSource.Cancel();
+            
+            Console.WriteLine("[{0}] Before Join...", managedThreadId2);
+            thread.Join();
+            Console.WriteLine("[{0}] After Join", managedThreadId2);
+            
+            // The example displays the following output:
+            //    [5] Sleeping before calling Cancel...
+            //    [6] Found solution 0 - now sleeping
+            //    [5] Calling Cancel...
+            //    [5] Before Join...
+            //    [6] Found solution 0 - now waking
+            //    [5] After Join
+            </code>
+            </example>
+            <param name="cancellationToken">The <see cref="T:System.Threading.CancellationToken" /> that
+            the Solve method overloads will observe.</param>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``1(``0[0:,0:])">
+            <summary>
+            Find all possible solutions to an exact cover problem given a 2-dimensional array of <typeparamref name="T"/>.
+            </summary>
+            <example>
+            <code>
+            var matrix = new[,]
+                {
+                    {1, 0, 0},
+                    {0, 1, 0},
+                    {0, 0, 1}
+                };
+            var dlx = new Dlx();
+            var solutions = dlx.Solve(matrix);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload determines whether a matrix value is a logical 1 or a logical 0
+            using the following default predicate:
+            <code>
+            private static Func&lt;T, bool&gt; DefaultPredicate&lt;T&gt;()
+            {
+                return t => !EqualityComparer&lt;T&gt;.Default.Equals(t, default(T));
+            }
+            </code>
+            </remarks>
+            <typeparam name="T">The type of elements in the matrix.</typeparam>
+            <param name="matrix">A matrix of <typeparamref name="T"/> values representing an exact cover problem.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``1(``0[0:,0:],System.Func{``0,System.Boolean})">
+            <summary>
+            Find all possible solutions to an exact cover problem given a 2-dimensional array of <typeparamref name="T"/>
+            and a predicate.
+            </summary>
+            <example>
+            <code>
+            var matrix = new[,]
+                {
+                    {'X', 'O', 'O'},
+                    {'O', 'X', 'O'},
+                    {'O', 'O', 'X'}
+                };
+            var dlx = new Dlx();
+            var solutions = dlx.Solve(matrix, c => c == 'X');
+            </code>
+            </example>
+            <typeparam name="T">The type of elements in the matrix.</typeparam>
+            <param name="matrix">A matrix of <typeparamref name="T"/> values representing an exact cover problem.</param>
+            <param name="predicate">A predicate which is invoked for each value in the matrix to determine
+            whether the value represents a logical 1 or a logical 0 indicated by returning <c>true</c>
+            or <c>false</c> respectively.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``3(``0,System.Func{``0,System.Collections.Generic.IEnumerable{``1}},System.Func{``1,System.Collections.Generic.IEnumerable{``2}})">
+            <summary>
+            Find all possible solutions to an exact cover problem given an arbitrary data structure representing
+            a matrix.
+            </summary>
+            <example>
+            <code>
+            var data = new List&lt;Tuple&lt;int[], string&gt;&gt;
+                {
+                    Tuple.Create(new[] {1, 0, 0}, "Some data associated with row 0"),
+                    Tuple.Create(new[] {0, 1, 0}, "Some data associated with row 1"),
+                    Tuple.Create(new[] {0, 0, 1}, "Some data associated with row 2")
+                };
+            var dlx = new Dlx();
+            var solutions = dlx.Solve(data, d => d, r => r.Item1);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload determines whether a matrix value is a logical 1 or a logical 0
+            using the following default predicate:
+            <code>
+            private static Func&lt;T, bool&gt; DefaultPredicate&lt;T&gt;()
+            {
+                return t => !EqualityComparer&lt;T&gt;.Default.Equals(t, default(T));
+            }
+            </code>
+            </remarks>
+            <typeparam name="TData">The type of the data structure that represents the exact cover problem.</typeparam>
+            <typeparam name="TRow">The type of the data structure that represents rows in the matrix.</typeparam>
+            <typeparam name="TCol">The type of the data structure that represents columns in the matrix.</typeparam>
+            <param name="data">The top-level data structure that represents the exact cover problem.</param>
+            <param name="iterateRows">A System.Func delegate that will be invoked to iterate the rows in the matrix.</param>
+            <param name="iterateCols">A System.Func delegate that will be invoked to iterate the columns
+            in a particular row in the matrix.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``3(``0,System.Func{``0,System.Collections.Generic.IEnumerable{``1}},System.Func{``1,System.Collections.Generic.IEnumerable{``2}},System.Func{``2,System.Boolean})">
+            <summary>
+            Find all possible solutions to an exact cover problem given an arbitrary data structure representing
+            a matrix and a predicate.
+            </summary>
+            <example>
+            <code>
+            var data = new List&lt;Tuple&lt;char[], string&gt;&gt;
+                {
+                    Tuple.Create(new[] {'X', 'O', 'O'}, "Some data associated with row 0"),
+                    Tuple.Create(new[] {'O', 'X', 'O'}, "Some data associated with row 1"),
+                    Tuple.Create(new[] {'O', 'O', 'X'}, "Some data associated with row 2")
+                };
+            var dlx = new Dlx();
+            var solutions = dlx.Solve(data, d => d, r => r.Item1, c => c == 'X');
+            </code>
+            </example>
+            <typeparam name="TData">The type of the data structure that represents the exact cover problem.</typeparam>
+            <typeparam name="TRow">The type of the data structure that represents rows in the matrix.</typeparam>
+            <typeparam name="TCol">The type of the data structure that represents columns in the matrix.</typeparam>
+            <param name="data">The top-level data structure that represents the exact cover problem.</param>
+            <param name="iterateRows">A System.Func delegate that will be invoked to iterate the rows in the matrix.</param>
+            <param name="iterateCols">A System.Func delegate that will be invoked to iterate the columns
+            in a particular row in the matrix.</param>
+            <param name="predicate">A predicate which is invoked for each value in the matrix to determine
+            whether the value represents a logical 1 or a logical 0 indicated by returning <c>true</c>
+            or <c>false</c> respectively.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``1(``0[0:,0:],System.Int32)">
+            <summary>
+            Find all possible solutions to an exact cover problem given a 2-dimensional array of <typeparamref name="T"/>
+            containing primary and secondary columns.
+            </summary>
+            <example>
+            <code>
+            var matrix = new[,]
+                {
+                    {1, 0, 0, 1, 0},
+                    {0, 1, 0, 0, 0},
+                    {0, 0, 1, 0, 0}
+                };
+            var dlx = new Dlx();
+            const int numPrimaryColumns = 3;
+            var solutions = dlx.Solve(matrix, numPrimaryColumns);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload determines whether a matrix value is a logical 1 or a logical 0
+            using the following default predicate:
+            <code>
+            private static Func&lt;T, bool&gt; DefaultPredicate&lt;T&gt;()
+            {
+                return t => !EqualityComparer&lt;T&gt;.Default.Equals(t, default(T));
+            }
+            </code>
+            In addition, this Solve method overload handles secondary columns. The difference between primary and secondary columns is that
+            a solution covers every primary column exactly once but covers every secondary column at most once.
+            </remarks>
+            <typeparam name="T">The type of elements in the matrix.</typeparam>
+            <param name="matrix">A matrix of <typeparamref name="T"/> values representing an exact cover problem.</param>
+            <param name="numPrimaryColumns">The number of primary columns. Columns at indices higher than this value are assumed to be secondary columns.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``1(``0[0:,0:],System.Func{``0,System.Boolean},System.Int32)">
+            <summary>
+            Find all possible solutions to an exact cover problem given a 2-dimensional array of <typeparamref name="T"/>
+            containing primary and secondary columns and a predicate.
+            </summary>
+            <example>
+            <code>
+            var matrix = new[,]
+                {
+                    {'X', 'O', 'O', 'X', 'O'},
+                    {'O', 'X', 'O', 'O', 'O'},
+                    {'O', 'O', 'X', 'O', 'O'}
+                };
+            var dlx = new Dlx();
+            const int numPrimaryColumns = 3;
+            var solutions = dlx.Solve(matrix, c => c == 'X', numPrimaryColumns);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload also handles secondary columns.
+            The difference between primary and secondary columns is that
+            a solution covers every primary column exactly once but covers every secondary column at most once.
+            </remarks>
+            <typeparam name="T">The type of elements in the matrix.</typeparam>
+            <param name="matrix">A matrix of <typeparamref name="T"/> values representing an exact cover problem.</param>
+            <param name="predicate">A predicate which is invoked for each value in the matrix to determine
+            whether the value represents a logical 1 or a logical 0 indicated by returning <c>true</c>
+            or <c>false</c> respectively.</param>
+            <param name="numPrimaryColumns">The number of primary columns. Columns at indices higher than this value are assumed to be secondary columns.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``3(``0,System.Func{``0,System.Collections.Generic.IEnumerable{``1}},System.Func{``1,System.Collections.Generic.IEnumerable{``2}},System.Int32)">
+            <summary>
+            Find all possible solutions to an exact cover problem given an arbitrary data structure representing
+            a matrix containing primary and secondary columns.
+            </summary>
+            <example>
+            <code>
+            var data = new List&lt;Tuple&lt;int[], string&gt;&gt;
+                {
+                    Tuple.Create(new[] {1, 0, 0, 1, 0}, "Some data associated with row 0"),
+                    Tuple.Create(new[] {0, 1, 0, 0, 0}, "Some data associated with row 1"),
+                    Tuple.Create(new[] {0, 0, 1, 0, 0}, "Some data associated with row 2")
+                };
+            var dlx = new Dlx();
+            const int numPrimaryColumns = 3;
+            var solutions = dlx.Solve(data, d => d, r => r.Item1, numPrimaryColumns);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload determines whether a matrix value is a logical 1 or a logical 0
+            using the following default predicate:
+            <code>
+            private static Func&lt;T, bool&gt; DefaultPredicate&lt;T&gt;()
+            {
+                return t => !EqualityComparer&lt;T&gt;.Default.Equals(t, default(T));
+            }
+            </code>
+            In addition, this Solve method overload handles secondary columns. The difference between primary and secondary columns is that
+            a solution covers every primary column exactly once but covers every secondary column at most once.
+            </remarks>
+            <typeparam name="TData">The type of the data structure that represents the exact cover problem.</typeparam>
+            <typeparam name="TRow">The type of the data structure that represents rows in the matrix.</typeparam>
+            <typeparam name="TCol">The type of the data structure that represents columns in the matrix.</typeparam>
+            <param name="data">The top-level data structure that represents the exact cover problem.</param>
+            <param name="iterateRows">A System.Func delegate that will be invoked to iterate the rows in the matrix.</param>
+            <param name="iterateCols">A System.Func delegate that will be invoked to iterate the columns
+            in a particular row in the matrix.</param>
+            <param name="numPrimaryColumns">The number of primary columns. Columns at indices higher than this value are assumed to be secondary columns.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="M:DlxLib.Dlx.Solve``3(``0,System.Func{``0,System.Collections.Generic.IEnumerable{``1}},System.Func{``1,System.Collections.Generic.IEnumerable{``2}},System.Func{``2,System.Boolean},System.Int32)">
+            <summary>
+            Find all possible solutions to an exact cover problem given an arbitrary data structure representing
+            a matrix containing primary and secondary columns and a predicate.
+            </summary>
+            <example>
+            <code>
+            var data = new List&lt;Tuple&lt;char[], string&gt;&gt;
+                {
+                    Tuple.Create(new[] {'X', 'O', 'O', 'X', 'O'}, "Some data associated with row 0"),
+                    Tuple.Create(new[] {'O', 'X', 'O', 'O', 'O'}, "Some data associated with row 1"),
+                    Tuple.Create(new[] {'O', 'O', 'X', 'O', 'O'}, "Some data associated with row 2")
+                };
+            var dlx = new Dlx();
+            const int numPrimaryColumns = 3;
+            var solutions = dlx.Solve(data, d => d, r => r.Item1, c => c == 'X', numPrimaryColumns);
+            </code>
+            </example>
+            <remarks>
+            This Solve method overload also handles secondary columns.
+            The difference between primary and secondary columns is that
+            a solution covers every primary column exactly once but covers every secondary column at most once.
+            </remarks>
+            <typeparam name="TData">The type of the data structure that represents the exact cover problem.</typeparam>
+            <typeparam name="TRow">The type of the data structure that represents rows in the matrix.</typeparam>
+            <typeparam name="TCol">The type of the data structure that represents columns in the matrix.</typeparam>
+            <param name="data">The top-level data structure that represents the exact cover problem.</param>
+            <param name="iterateRows">A System.Func delegate that will be invoked to iterate the rows in the matrix.</param>
+            <param name="iterateCols">A System.Func delegate that will be invoked to iterate the columns
+            in a particular row in the matrix.</param>
+            <param name="predicate">A predicate which is invoked for each value in the matrix to determine
+            whether the value represents a logical 1 or a logical 0 indicated by returning <c>true</c>
+            or <c>false</c> respectively.</param>
+            <param name="numPrimaryColumns">The number of primary columns. Columns at indices higher than this value are assumed to be secondary columns.</param>
+            <returns>Yields <see cref="T:DlxLib.Solution" /> objects as they are found.</returns>
+        </member>
+        <member name="E:DlxLib.Dlx.Started">
+            <summary>
+            Occurs once when the internal search algorithm starts.
+            </summary>
+        </member>
+        <member name="E:DlxLib.Dlx.Finished">
+            <summary>
+            Occurs once when the internal search algorithm finishes.
+            </summary>
+        </member>
+        <member name="E:DlxLib.Dlx.Cancelled">
+            <summary>
+            Occurs when the caller requests cancellation via the <see cref="T:System.Threading.CancellationToken" /> passed to <see cref="M:DlxLib.Dlx.#ctor(System.Threading.CancellationToken)" />.
+            </summary>
+        </member>
+        <member name="E:DlxLib.Dlx.SearchStep">
+            <summary>
+            Occurs for each set of rows considered by the internal search algorithm.
+            </summary>
+        </member>
+        <member name="E:DlxLib.Dlx.SolutionFound">
+            <summary>
+            Occurs for each solution found to the exact cover problem.
+            </summary>
+        </member>
+        <member name="T:DlxLib.NamespaceDoc">
+            <summary>
+            DlxLib is a C# class library that solves exact cover problems by
+            implementing Donald E. Knuth's Algorithm X using the
+            Dancing Links technique as described in his paper,
+            <a href="http://arxiv.org/pdf/cs/0011047v1.pdf">Dancing Links</a>.
+            </summary>
+            <remarks>
+            See the following links for more information:
+            <br />
+            <br />
+            <list type="bullet">
+            <item>
+            <description><a href="http://en.wikipedia.org/wiki/Knuth%27s_Algorithm_X">Knuth's Algorithm X (Wikipedia)</a></description>
+            </item>
+            <item>
+            <description><a href="http://en.wikipedia.org/wiki/Dancing_Links">Dancing Links (Wikipedia)</a></description>
+            </item>
+            <item>
+            <description><a href="http://en.wikipedia.org/wiki/Exact_cover">Exact cover (Wikipedia)</a></description>
+            </item>
+            </list>
+            </remarks>
+        </member>
+        <member name="T:DlxLib.SearchStepEventArgs">
+            <summary>
+            Provides data for the <see cref="E:DlxLib.Dlx.SearchStep" /> event.
+            </summary>
+        </member>
+        <member name="P:DlxLib.SearchStepEventArgs.Iteration">
+            <summary>
+            The number of iterations that the internal search algorithm has performed up to this point.
+            </summary>
+        </member>
+        <member name="P:DlxLib.SearchStepEventArgs.RowIndexes">
+            <summary>
+            The indexes of the set of rows, in the original matrix, that is currently being considered.
+            </summary>
+        </member>
+        <member name="T:DlxLib.Solution">
+            <summary>
+            Represents a solution to an exact cover problem.
+            </summary>
+        </member>
+        <member name="P:DlxLib.Solution.RowIndexes">
+            <summary>
+            The indexes of the set of rows, in the original matrix, that constitute the solution.
+            The indexes are always sorted in ascending order.
+            </summary>
+        </member>
+        <member name="T:DlxLib.SolutionFoundEventArgs">
+            <summary>
+            Provides data for the <see cref="E:DlxLib.Dlx.SolutionFound" /> event.
+            </summary>
+        </member>
+        <member name="P:DlxLib.SolutionFoundEventArgs.Solution">
+            <summary>
+            Gives details of the solution.
+            </summary>
+        </member>
+        <member name="P:DlxLib.SolutionFoundEventArgs.SolutionIndex">
+            <summary>
+            The zero-based index of the solution i.e. the first solution found has a SolutionIndex of 0,
+            the second solution found has a SolutionIndex of 1, etc.
+            </summary>
+        </member>
+    </members>
+</doc>
